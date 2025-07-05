@@ -1,5 +1,5 @@
 # app.py
-from flask import Flask, jsonify, Response, request, send_file
+from flask import Flask, send_from_directory, jsonify, Response, request
 from flask_cors import CORS
 import cv2
 import numpy as np
@@ -11,7 +11,10 @@ from pathlib import Path
 from core.parking_monitor import ParkingMonitor
 from concurrent.futures import ThreadPoolExecutor
 
-app = Flask(__name__)
+# Serve static files from frontend/dist
+FRONTEND_DIST = Path(__file__).parent.parent / 'frontend' / 'dist'
+
+app = Flask(__name__, static_folder=str(FRONTEND_DIST), static_url_path="/")
 CORS(app)
 
 # Global variables to store parking data
@@ -228,72 +231,6 @@ def generate_frames(lot_id):
             print(f"Error generating frame for lot {lot_id}: {e}")
             time.sleep(0.1)
 
-@app.route('/')
-def index():
-    try:
-        # Try to serve the built React frontend first
-        built_frontend_path = Path(__file__).parent.parent / 'frontend' / 'dist' / 'index.html'
-        if built_frontend_path.exists():
-            return send_file(str(built_frontend_path))
-        
-        # Fallback to development frontend
-        dev_frontend_path = Path(__file__).parent.parent / 'frontend' / 'index.html'
-        if dev_frontend_path.exists():
-            return send_file(str(dev_frontend_path))
-        else:
-            # Fallback to API info if frontend not found
-            return jsonify({
-                'message': 'ParkingVision API Server',
-                'status': 'running',
-                'endpoints': {
-                    'parking_data': '/api/parking-data',
-                    'parking_details': '/api/parking-details?lot=1',
-                    'video_stream': '/api/video-stream?lot=1'
-                }
-            })
-    except Exception as e:
-        return jsonify({
-            'message': 'ParkingVision API Server',
-            'status': 'running',
-            'error': str(e),
-            'endpoints': {
-                'parking_data': '/api/parking-data',
-                'parking_details': '/api/parking-details?lot=1',
-                'video_stream': '/api/video-stream?lot=1'
-            }
-        })
-
-@app.route('/health')
-def health():
-    return jsonify({'status': 'healthy'})
-
-@app.route('/<path:filename>')
-def serve_static(filename):
-    """Serve static files from the frontend directory"""
-    try:
-        # Try built frontend first
-        built_frontend_path = Path(__file__).parent.parent / 'frontend' / 'dist' / filename
-        if built_frontend_path.exists() and built_frontend_path.is_file():
-            return send_file(str(built_frontend_path))
-        
-        # Fallback to development frontend
-        dev_frontend_path = Path(__file__).parent.parent / 'frontend' / filename
-        if dev_frontend_path.exists() and dev_frontend_path.is_file():
-            return send_file(str(dev_frontend_path))
-        else:
-            # If file not found, serve index.html for SPA routing
-            built_index_path = Path(__file__).parent.parent / 'frontend' / 'dist' / 'index.html'
-            if built_index_path.exists():
-                return send_file(str(built_index_path))
-            
-            dev_index_path = Path(__file__).parent.parent / 'frontend' / 'index.html'
-            if dev_index_path.exists():
-                return send_file(str(dev_index_path))
-            else:
-                return jsonify({'error': 'File not found'}), 404
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
 @app.route('/api/parking-data')
 def get_parking_data():
     return jsonify({
@@ -332,6 +269,21 @@ def video_stream():
     
     return Response(generate_frames(lot),
                     mimetype='multipart/x-mixed-replace; boundary=frame')
+
+@app.route('/health')
+def health():
+    return jsonify({'status': 'healthy'})
+
+# --- STATIC FILE SERVING FOR REACT FRONTEND ---
+
+@app.route('/', defaults={'path': ''})
+@app.route('/<path:path>')
+def serve_react(path):
+    # Serve static files from dist, else index.html for SPA
+    if (FRONTEND_DIST / path).is_file():
+        return send_from_directory(FRONTEND_DIST, path)
+    else:
+        return send_from_directory(FRONTEND_DIST, 'index.html')
 
 if __name__ == '__main__':
     print("Starting Parking Monitor Flask App...")
