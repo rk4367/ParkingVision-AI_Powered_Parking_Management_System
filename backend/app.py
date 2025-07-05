@@ -231,10 +231,15 @@ def generate_frames(lot_id):
 @app.route('/')
 def index():
     try:
-        # Try to serve the React frontend
-        frontend_path = Path(__file__).parent.parent / 'frontend' / 'index.html'
-        if frontend_path.exists():
-            return send_file(str(frontend_path))
+        # Try to serve the built React frontend first
+        built_frontend_path = Path(__file__).parent.parent / 'frontend' / 'dist' / 'index.html'
+        if built_frontend_path.exists():
+            return send_file(str(built_frontend_path))
+        
+        # Fallback to development frontend
+        dev_frontend_path = Path(__file__).parent.parent / 'frontend' / 'index.html'
+        if dev_frontend_path.exists():
+            return send_file(str(dev_frontend_path))
         else:
             # Fallback to API info if frontend not found
             return jsonify({
@@ -266,14 +271,24 @@ def health():
 def serve_static(filename):
     """Serve static files from the frontend directory"""
     try:
-        frontend_path = Path(__file__).parent.parent / 'frontend' / filename
-        if frontend_path.exists() and frontend_path.is_file():
-            return send_file(str(frontend_path))
+        # Try built frontend first
+        built_frontend_path = Path(__file__).parent.parent / 'frontend' / 'dist' / filename
+        if built_frontend_path.exists() and built_frontend_path.is_file():
+            return send_file(str(built_frontend_path))
+        
+        # Fallback to development frontend
+        dev_frontend_path = Path(__file__).parent.parent / 'frontend' / filename
+        if dev_frontend_path.exists() and dev_frontend_path.is_file():
+            return send_file(str(dev_frontend_path))
         else:
             # If file not found, serve index.html for SPA routing
-            index_path = Path(__file__).parent.parent / 'frontend' / 'index.html'
-            if index_path.exists():
-                return send_file(str(index_path))
+            built_index_path = Path(__file__).parent.parent / 'frontend' / 'dist' / 'index.html'
+            if built_index_path.exists():
+                return send_file(str(built_index_path))
+            
+            dev_index_path = Path(__file__).parent.parent / 'frontend' / 'index.html'
+            if dev_index_path.exists():
+                return send_file(str(dev_index_path))
             else:
                 return jsonify({'error': 'File not found'}), 404
     except Exception as e:
