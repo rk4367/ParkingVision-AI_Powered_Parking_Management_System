@@ -1,20 +1,17 @@
 # app.py
 from flask import Flask, send_from_directory, jsonify, Response, request
 from flask_cors import CORS
+import os
 import cv2
 import numpy as np
 import pickle
 import threading
 import time
-import os
 from pathlib import Path
 from core.parking_monitor import ParkingMonitor
 from concurrent.futures import ThreadPoolExecutor
 
-# Serve static files from frontend/dist
-FRONTEND_DIST = Path(__file__).parent.parent / 'frontend' / 'dist'
-
-app = Flask(__name__, static_folder=str(FRONTEND_DIST), static_url_path="/")
+app = Flask(__name__, static_folder="static", static_url_path="/")
 CORS(app)
 
 # Global variables to store parking data
@@ -279,11 +276,13 @@ def health():
 @app.route('/', defaults={'path': ''})
 @app.route('/<path:path>')
 def serve_react(path):
-    # Serve static files from dist, else index.html for SPA
-    if (FRONTEND_DIST / path).is_file():
-        return send_from_directory(FRONTEND_DIST, path)
+    # Serve static files from static, else index.html for SPA
+    static_folder = str(app.static_folder)
+    file_path = os.path.join(static_folder, path)
+    if path != "" and os.path.exists(file_path):
+        return send_from_directory(static_folder, path)
     else:
-        return send_from_directory(FRONTEND_DIST, 'index.html')
+        return send_from_directory(static_folder, 'index.html')
 
 if __name__ == '__main__':
     print("Starting Parking Monitor Flask App...")
