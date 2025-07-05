@@ -1,5 +1,6 @@
 # app.py
-from flask import Flask, jsonify, render_template, Response, request
+from flask import Flask, jsonify, Response, request, send_file
+from flask_cors import CORS
 import cv2
 import numpy as np
 import pickle
@@ -10,7 +11,8 @@ from pathlib import Path
 from core.parking_monitor import ParkingMonitor
 from concurrent.futures import ThreadPoolExecutor
 
-app = Flask(__name__, static_folder="static", template_folder="templates")
+app = Flask(__name__)
+CORS(app)
 
 # Global variables to store parking data
 parking_data = {
@@ -228,11 +230,54 @@ def generate_frames(lot_id):
 
 @app.route('/')
 def index():
-    return render_template('index.html')
+    try:
+        # Try to serve the React frontend
+        frontend_path = Path(__file__).parent.parent / 'frontend' / 'index.html'
+        if frontend_path.exists():
+            return send_file(str(frontend_path))
+        else:
+            # Fallback to API info if frontend not found
+            return jsonify({
+                'message': 'ParkingVision API Server',
+                'status': 'running',
+                'endpoints': {
+                    'parking_data': '/api/parking-data',
+                    'parking_details': '/api/parking-details?lot=1',
+                    'video_stream': '/api/video-stream?lot=1'
+                }
+            })
+    except Exception as e:
+        return jsonify({
+            'message': 'ParkingVision API Server',
+            'status': 'running',
+            'error': str(e),
+            'endpoints': {
+                'parking_data': '/api/parking-data',
+                'parking_details': '/api/parking-details?lot=1',
+                'video_stream': '/api/video-stream?lot=1'
+            }
+        })
 
-@app.route('/details.html')
-def details():
-    return render_template('details.html')
+@app.route('/health')
+def health():
+    return jsonify({'status': 'healthy'})
+
+@app.route('/<path:filename>')
+def serve_static(filename):
+    """Serve static files from the frontend directory"""
+    try:
+        frontend_path = Path(__file__).parent.parent / 'frontend' / filename
+        if frontend_path.exists() and frontend_path.is_file():
+            return send_file(str(frontend_path))
+        else:
+            # If file not found, serve index.html for SPA routing
+            index_path = Path(__file__).parent.parent / 'frontend' / 'index.html'
+            if index_path.exists():
+                return send_file(str(index_path))
+            else:
+                return jsonify({'error': 'File not found'}), 404
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/api/parking-data')
 def get_parking_data():
